@@ -73,6 +73,16 @@ export function shotPrompt(project, episode, scene, shot, charactersById) {
   ].filter(Boolean).join(' ');
 }
 
+// Prompt d'image d'INCRUSTATION (formule, graphique, tableau affiché sur la vidéo)
+export function overlayPrompt(project, shot) {
+  const what = (shot.description || '').replace(/^À l'écran \(incrustation\) :\s*/i, '').trim() || 'la notion expliquée dans ce plan';
+  return [
+    `Crée une image d'incrustation pour une vidéo pédagogique ${project.format === '16:9' ? 'horizontale 16:9' : 'verticale 9:16'} : ${what}.`,
+    'Fond blanc uni, bords légèrement arrondis, formules mathématiques et textes nets, très lisibles sur un téléphone.',
+    'Style sobre et moderne, bleu marine avec une seule couleur d\'accent. Image horizontale (environ 3:2), rien d\'autre que ce contenu.',
+  ].join(' ');
+}
+
 // Prompt d'IMAGE fixe pour un plan (première image du clip, à créer dans ChatGPT par ex.)
 export function shotImagePrompt(project, episode, scene, shot, charactersById) {
   const fmt = FORMATS[project.format] || FORMATS['9:16'];

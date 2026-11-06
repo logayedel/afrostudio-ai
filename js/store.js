@@ -122,7 +122,7 @@ async function blobToDataURL(blob) {
 function collectBlobIds(obj, set = new Set()) {
   if (!obj || typeof obj !== 'object') return set;
   for (const [k, v] of Object.entries(obj)) {
-    if (typeof v === 'string' && v.startsWith('b_') && ['refImage', 'clip', 'audio', 'blob', 'file'].includes(k)) set.add(v);
+    if (typeof v === 'string' && v.startsWith('b_') && ['refImage', 'clip', 'audio', 'blob', 'file', 'image'].includes(k)) set.add(v);
     else if (typeof v === 'object') collectBlobIds(v, set);
   }
   if (Array.isArray(obj.refImages)) obj.refImages.forEach((x) => set.add(x));

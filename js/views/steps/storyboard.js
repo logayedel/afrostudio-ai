@@ -4,7 +4,7 @@ import { startAssist, dropTarget } from '../../assist.js';
 import { putBlob, blobURL } from '../../db.js';
 import { generate } from '../../engines/index.js';
 import { localStoryboard } from '../../engines/local.js';
-import { shotPrompt, decorSheet, shotImagePrompt } from '../../prompts.js';
+import { shotPrompt, decorSheet, shotImagePrompt, overlayPrompt } from '../../prompts.js';
 import { aiContext, shotsFromAI, aiNotice, autoAssignDialogues } from './common.js';
 import { slug } from '../dashboard.js';
 
@@ -59,6 +59,39 @@ export function storyboardStep(ctx) {
     },
   });
 
+  // Incrustation : image (formule, graphique…) affichée sur la vidéo pendant tout le plan
+  const setOverlay = (shotId) => async (f) => {
+    const image = await putBlob(f, f.name || 'incrustation.png');
+    await mutateProject(p.id, (x) => { const s = findShot(x, shotId).shot; s.overlay = { position: 'haut', width: 90, ...(s.overlay || {}), image }; });
+  };
+  const overlayTask = (scene, shot) => ({
+    tool: 'chatgpt', kind: 'image', label: `incrustation · ${scene.title} · plan ${scene.shots.indexOf(shot) + 1}`,
+    prompt: overlayPrompt(p, shot), apply: setOverlay(shot.id),
+    next: () => {
+      const list = allShots(ep); const k = list.findIndex((x) => x.shot.id === shot.id);
+      const n = list.slice(k + 1).find((x) => !x.shot.overlay?.image);
+      return n ? overlayTask(n.scene, n.shot) : null;
+    },
+  });
+  const overlayBox = (scene, shot) => {
+    const o = shot.overlay;
+    const img = h('img', { class: 'ovl-thumb', alt: 'Incrustation' });
+    if (o?.image) blobURL(o.image).then((u) => { if (u) img.src = u; });
+    const box = h('div', { class: 'ovl-box' },
+      h('b', { class: 'small' }, '🖼️ Incrustation à l\'écran'),
+      h('p', { class: 'small muted' }, 'Image posée sur la vidéo pendant tout le plan (formule, graphique, tableau). Glissez une image ici.'),
+      o?.image ? img : null,
+      h('div', { class: 'row wrap' },
+        h('button', { class: 'link', onclick: async () => { const f = await pickFile('image/*'); if (f) await setOverlay(shot.id)(f); } }, o?.image ? 'Changer' : 'Importer'),
+        h('button', { class: 'link', onclick: () => startAssist(overlayTask(scene, shot)) }, '🎨 Créer avec ChatGPT'),
+        o?.image ? h('button', { class: 'link danger', onclick: () => mutateProject(p.id, (x) => { findShot(x, shot.id).shot.overlay = null; }) }, 'Retirer') : null),
+      o?.image ? h('div', { class: 'two' },
+        field('Position', o, 'position', { options: [['haut', 'En haut'], ['centre', 'Au centre'], ['bas', 'En bas']], onChange: save }),
+        field('Largeur', o, 'width', { options: [[50, '50 %'], [70, '70 %'], [90, '90 %'], [100, '100 %']], onChange: () => { o.width = Number(o.width); save(); } })) : null);
+    dropTarget(box, 'image', setOverlay(shot.id));
+    return box;
+  };
+
   const shotCard = (scene, shot, i) => {
     const thumb = h('div', { class: `shot-thumb ${fmtClass}` }, h('span', {}, `${shot.shotType}`));
     if (shot.refImage) blobURL(shot.refImage).then((u) => u && thumb.replaceChildren(h('img', { src: u, alt: '' })));
@@ -80,6 +113,7 @@ export function storyboardStep(ctx) {
       field('Ce qu\'on voit', shot, 'description', { type: 'textarea', rows: 2, onChange: refreshPrompt }),
       field('Action / mouvement', shot, 'action', { type: 'textarea', rows: 2, onChange: refreshPrompt }),
       field('Durée (secondes)', shot, 'duration', { type: 'number', min: 1, max: 60, step: 0.5, onChange: refreshPrompt }),
+      overlayBox(scene, shot),
       h('div', { class: 'row wrap' }, scene.characters.map((id) => byId[id]).filter(Boolean).map((c) => h('label', { class: 'chip' },
         h('input', { type: 'checkbox', checked: shot.characters.includes(c.id), onchange: (e) => { shot.characters = e.target.checked ? [...shot.characters, c.id] : shot.characters.filter((x) => x !== c.id); refreshPrompt(); } }), c.name))),
       lines.length ? h('div', { class: 'small lines' }, lines.map((l) => h('div', {}, h('b', {}, byId[l.characterId]?.name || 'Narrateur'), ' : ', l.text))) : null,

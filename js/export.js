@@ -38,9 +38,10 @@ export async function exportMP4(timeline, settings, { onStatus = () => {}, onPro
       return fname;
     };
 
-    const files = { items: [], hasAudio: [], voices: [], music: null };
+    const files = { items: [], hasAudio: [], voices: [], music: null, overlays: [] };
     for (const [i, it] of timeline.items.entries()) {
       onStatus(`Préparation des plans : ${i + 1}/${timeline.items.length}`);
+      files.overlays.push(it.overlay ? await write(it.overlay.blob, `overlay${i}`) : null);
       if (it.type === 'blank') { files.items.push(null); files.hasAudio.push(false); continue; }
       const f = await write(it.blob, `item${i}`);
       files.items.push(f);

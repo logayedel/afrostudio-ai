@@ -24,7 +24,8 @@ export function buildTimeline(episode, { includeMissing = true } = {}) {
       const type = shot.clip ? 'clip' : shot.refImage ? 'image' : 'blank';
       if (!includeMissing && type !== 'clip') continue;
       const d = usedDuration(shot);
-      items.push({ type, shotId: shot.id, sceneId: scene.id, blob: shot.clip || shot.refImage || null, start: r3(t), duration: d, label: `${scene.title} · ${shot.shotType}` });
+      const overlay = shot.overlay?.image ? { blob: shot.overlay.image, position: shot.overlay.position || 'haut', width: Number(shot.overlay.width) || 90 } : null;
+      items.push({ type, shotId: shot.id, sceneId: scene.id, blob: shot.clip || shot.refImage || null, overlay, start: r3(t), duration: d, label: `${scene.title} · ${shot.shotType}` });
       t = r3(t + d);
     }
   }
@@ -54,20 +55,32 @@ export function buildFFmpegArgs(timeline, files, { format = '9:16', quality = 'f
 
   timeline.items.forEach((it, i) => {
     const d = it.duration;
+    const ovl = it.overlay && files.overlays?.[i];
+    const vo = ovl ? `b${i}` : `v${i}`; // sortie de la vidéo de base (avant incrustation)
     if (it.type === 'clip') {
       args.push('-i', files.items[i]);
-      filters.push(`[${input}:v]trim=duration=${d},setpts=PTS-STARTPTS,fps=24,${frame},setsar=1,format=yuv420p[v${i}]`);
+      filters.push(`[${input}:v]trim=duration=${d},setpts=PTS-STARTPTS,fps=24,${frame},setsar=1,format=yuv420p[${vo}]`);
       if (keepClipAudio && files.hasAudio[i]) filters.push(`[${input}:a]atrim=duration=${d},asetpts=PTS-STARTPTS,${AF},apad,atrim=duration=${d}[a${i}]`);
       else filters.push(`anullsrc=r=48000:cl=stereo,atrim=duration=${d}[a${i}]`);
       input++;
     } else if (it.type === 'image') {
       args.push('-loop', '1', '-framerate', '24', '-t', String(d), '-i', files.items[i]);
-      filters.push(`[${input}:v]trim=duration=${d},setpts=PTS-STARTPTS,fps=24,${frame},setsar=1,format=yuv420p[v${i}]`);
+      filters.push(`[${input}:v]trim=duration=${d},setpts=PTS-STARTPTS,fps=24,${frame},setsar=1,format=yuv420p[${vo}]`);
       filters.push(`anullsrc=r=48000:cl=stereo,atrim=duration=${d}[a${i}]`);
       input++;
     } else {
-      filters.push(`color=c=black:s=${W}x${H}:r=24:d=${d},setsar=1,format=yuv420p[v${i}]`);
+      filters.push(`color=c=black:s=${W}x${H}:r=24:d=${d},setsar=1,format=yuv420p[${vo}]`);
       filters.push(`anullsrc=r=48000:cl=stereo,atrim=duration=${d}[a${i}]`);
+    }
+    if (ovl) {
+      // Incrustation : image (formule, graphique…) posée sur la vidéo pendant tout le plan
+      const ow = Math.round((W * Math.min(100, Math.max(20, it.overlay.width))) / 200) * 2;
+      const oh = Math.round((H * (it.overlay.position === 'centre' ? 0.9 : 0.45)) / 2) * 2;
+      const y = { haut: 'main_h*0.05', centre: '(main_h-overlay_h)/2', bas: 'main_h-overlay_h-main_h*0.06' }[it.overlay.position] || 'main_h*0.05';
+      args.push('-loop', '1', '-framerate', '24', '-t', String(d), '-i', ovl);
+      filters.push(`[${input}:v]scale=${ow}:${oh}:force_original_aspect_ratio=decrease,format=rgba[o${i}]`);
+      filters.push(`[${vo}][o${i}]overlay=x=(main_w-overlay_w)/2:y=${y}:shortest=1,format=yuv420p[v${i}]`);
+      input++;
     }
   });
   const n = timeline.items.length;
