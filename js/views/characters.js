@@ -1,7 +1,7 @@
 import { h, field, toast, confirmBox, pickFile, copyText, notice, badge } from '../ui.js';
 import { listCharacters, getCharacter, newCharacter, saveCharacter, deleteCharacter, autosave, listProjects, saveProject } from '../store.js';
 import { putBlob, blobURL } from '../db.js';
-import { identitySheet, characterReferencePrompt } from '../prompts.js';
+import { identitySheet, characterReferencePrompt, voiceSheet } from '../prompts.js';
 import { can, generate } from '../engines/index.js';
 import { speak, voicesFor } from '../audio.js';
 
@@ -33,8 +33,9 @@ export async function characterEditorView({ characterId }) {
   const imageAI = await can('image');
 
   const sheetBox = h('pre', { class: 'sheet' });
+  const voiceBox = h('pre', { class: 'sheet' });
   const promptBox = h('pre', { class: 'sheet' });
-  const refresh = () => { sheetBox.textContent = identitySheet(c); promptBox.textContent = characterReferencePrompt(c, null); };
+  const refresh = () => { sheetBox.textContent = identitySheet(c); voiceBox.textContent = voiceSheet(c); promptBox.textContent = characterReferencePrompt(c, null); };
   const onChange = () => { save(); refresh(); };
   refresh();
 
@@ -113,6 +114,8 @@ export async function characterEditorView({ characterId }) {
           h('div', { class: 'two' },
             field('Hauteur (aperçu)', c.voice, 'pitch', { type: 'number', min: 0.5, max: 2, step: 0.1, onChange }),
             field('Débit (aperçu)', c.voice, 'rate', { type: 'number', min: 0.5, max: 2, step: 0.05, onChange })),
+          field('Description de la voix pour Grok (facultatif, remplace la description automatique)', c.voice, 'description', { type: 'textarea', rows: 2, onChange, placeholder: 'Ex. : voix d\'homme âgé, grave et un peu rauque, chaleureuse et malicieuse, accent wolof de Dakar, parle lentement en riant' }),
+          h('p', { class: 'muted small' }, 'Fiche voix insérée mot pour mot dans chaque prompt où le personnage parle :'), voiceBox,
           h('label', { class: 'field' }, h('span', {}, 'Voix du navigateur pour l\'aperçu'), voiceSelect),
           h('button', { class: 'btn ghost', onclick: () => speak(c.catchphrase || `Bonjour, je suis ${c.name}.`, c.voice) }, '🔊 Écouter un aperçu'),
           notice('real', 'L\'aperçu utilise les voix de synthèse installées dans votre navigateur (gratuit, hors-ligne). Les voix IA réalistes et les accents précis viendront avec un moteur de voix (ex. ElevenLabs) via le serveur relais.'))),
