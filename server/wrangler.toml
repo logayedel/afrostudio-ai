@@ -1,0 +1,24 @@
+# Serveur relais AfroStudio AI (Cloudflare Workers)
+name = "afrostudio-relais"
+main = "src/worker.js"
+compatibility_date = "2026-10-01"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+# Adresse(s) autorisée(s) à appeler le relais, séparées par des virgules
+ALLOWED_ORIGINS = "https://logayedel.github.io,http://localhost:8765"
+# Modèle de texte (voir docs/MOTEURS-IA.md)
+TEXT_MODEL = "claude-opus-5-5"
+TEXT_EFFORT = "medium"
+# Nombre maximal de générations par jour (nécessite le stockage KV ci-dessous)
+DAILY_LIMIT = "100"
+
+# Secrets (jamais dans ce fichier !) — à créer avec :
+#   npx wrangler secret put ANTHROPIC_API_KEY
+#   npx wrangler secret put STUDIO_ACCESS_CODE
+
+# Compteur quotidien facultatif :
+#   npx wrangler kv namespace create USAGE   puis décommentez et collez l'identifiant :
+# [[kv_namespaces]]
+# binding = "USAGE"
+# id = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
