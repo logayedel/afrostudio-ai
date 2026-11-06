@@ -161,3 +161,25 @@ export async function importProjectFile(file) {
   await saveProject(p);
   return p;
 }
+
+// Modifie un projet en relisant la version enregistrée (sûr même si la page a été réaffichée entre-temps)
+export async function mutateProject(projectId, fn) {
+  await flushSaves();
+  const p = await getProject(projectId);
+  if (!p) throw new Error('Projet introuvable');
+  await fn(p);
+  await saveProject(p);
+  dispatchEvent(new HashChangeEvent('hashchange'));
+}
+export async function mutateCharacter(characterId, fn) {
+  await flushSaves();
+  const c = await getCharacter(characterId);
+  if (!c) throw new Error('Personnage introuvable');
+  await fn(c);
+  await saveCharacter(c);
+  dispatchEvent(new HashChangeEvent('hashchange'));
+}
+export function findShot(project, shotId) {
+  for (const s of project.seasons) for (const e of s.episodes) for (const sc of e.scenes) for (const sh of sc.shots) if (sh.id === shotId) return { episode: e, scene: sc, shot: sh };
+  return null;
+}

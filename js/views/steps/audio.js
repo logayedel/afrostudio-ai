@@ -1,4 +1,6 @@
-import { h, toast, pickFile, notice, field, mediaDuration, fmtTime } from '../../ui.js';
+import { h, toast, pickFile, pickFiles, notice, field, mediaDuration, fmtTime } from '../../ui.js';
+import { mutateProject } from '../../store.js';
+import { dropTarget, naturalSort } from '../../assist.js';
 import { putBlob, blobURL } from '../../db.js';
 import { speak, startRecording } from '../../audio.js';
 import { autoAssignDialogues } from './common.js';
@@ -16,6 +18,22 @@ export function audioStep(ctx) {
     return a;
   };
 
+  const findLine = (x, id) => { for (const s of x.seasons) for (const e of s.episodes) for (const sc of e.scenes) for (const l of sc.dialogues) if (l.id === id) return l; return null; };
+  const setVoice = (lineId) => async (f) => {
+    const blob = await putBlob(f, f.name || 'voix.webm'); const d = await mediaDuration(f, 'audio');
+    await mutateProject(ctx.p.id, (x) => { const l = findLine(x, lineId); l.audio = blob; l.audioDuration = d; });
+  };
+  async function importMany() {
+    const files = naturalSort((await pickFiles('audio/*')).filter((f) => f.type.startsWith('audio/') || /\.(mp3|wav|m4a|ogg|webm)$/i.test(f.name)));
+    if (!files.length) return;
+    const empty = lines.filter((d) => !d.audio);
+    if (!empty.length) return toast('Toutes les répliques ont déjà une voix.', 'error');
+    const prepared = [];
+    for (const [i, f] of files.slice(0, empty.length).entries()) prepared.push([empty[i].id, await putBlob(f, f.name), await mediaDuration(f, 'audio')]);
+    await mutateProject(ctx.p.id, (x) => { for (const [id, blob, d] of prepared) { const l = findLine(x, id); l.audio = blob; l.audioDuration = d; } });
+    toast(`${prepared.length} voix rangée(s) dans l'ordre des répliques ✓`, 'ok');
+  }
+
   const lineRow = (scene, d) => {
     const c = byId[d.characterId];
     const recBtn = h('button', { class: 'btn small ghost', onclick: async () => {
@@ -32,7 +50,7 @@ export function audioStep(ctx) {
       } catch (e) { recording = null; toast('Micro indisponible : ' + e.message, 'error'); }
     } }, '🎤 Enregistrer ma voix');
 
-    return h('div', { class: 'line-row' },
+    return dropTarget(h('div', { class: 'line-row' },
       h('div', { class: 'grow' },
         h('div', {}, h('b', {}, c?.name || 'Narrateur'), d.emotion ? h('span', { class: 'muted small' }, ` (${d.emotion})`) : null),
         h('p', { class: 'line-text' }, d.text || h('i', { class: 'muted' }, 'Réplique vide')),
@@ -48,14 +66,16 @@ export function audioStep(ctx) {
           h('button', { class: 'link danger', onclick: async () => { d.audio = null; await rerender(); } }, 'Retirer')) : null),
       scene.shots.length ? h('div', { class: 'line-place' },
         field('Placée sur le plan', d, 'shotId', { options: scene.shots.map((s, i) => [s.id, `Plan ${i + 1} (${s.shotType})`]), onChange: save }),
-        field('Décalage (s)', d, 'offset', { type: 'number', min: 0, max: 60, step: 0.1, onChange: save })) : h('small', { class: 'muted' }, 'Pas de plan : la réplique ne sera pas placée au montage.'));
+        field('Décalage (s)', d, 'offset', { type: 'number', min: 0, max: 60, step: 0.1, onChange: save })) : h('small', { class: 'muted' }, 'Pas de plan : la réplique ne sera pas placée au montage.')), 'audio', setVoice(d.id));
   };
 
   ep.scenes.forEach(autoAssignDialogues);
 
   return h('div', {},
     h('div', { class: 'panel' },
-      h('h2', {}, '🎙️ Studio audio'),
+      h('div', { class: 'panel-head' }, h('h2', {}, '🎙️ Studio audio'),
+        h('button', { class: 'btn ghost', disabled: !lines.length, onclick: importMany }, '⬆ Importer plusieurs voix')),
+      h('p', { class: 'small muted' }, 'Astuce : nommez vos fichiers dans l\'ordre (01-gainde.mp3, 02-tataboy.mp3…) et importez-les d\'un coup : ils sont rangés sur les répliques sans voix, dans l\'ordre du scénario. Vous pouvez aussi glisser un fichier sur une réplique.'),
       h('div', { class: 'progress-line' }, h('progress', { max: lines.length || 1, value: withAudio }), h('span', {}, `${withAudio}/${lines.length} répliques avec une piste audio`)),
       notice('real', 'Fonctionne dès maintenant : aperçu des répliques avec les voix du navigateur, enregistrement au micro, import de fichiers audio (voix, bruitages). Les pistes importées ou enregistrées sont mixées automatiquement dans l\'export MP4.'),
       voiceAI ? null : notice('off', 'Aucun moteur de voix IA connecté : les voix de personnages réalistes et les accents ne sont pas encore générés automatiquement. L\'aperçu navigateur n\'est pas inclus dans l\'export.')),

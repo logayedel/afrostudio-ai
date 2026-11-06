@@ -249,3 +249,15 @@ video.final { max-height: 60vh; max-width: 100%; background: #000; border-radius
   .topnav a { padding: 6px 8px; }
   .save-state { display: none; }
 }
+
+/* Mode éco : panneau d'assistance et zones de dépôt */
+.assist-dock { position: fixed; right: 20px; bottom: 20px; width: min(380px, calc(100vw - 32px)); z-index: 150; background: var(--panel); border: 2px solid var(--gold); border-radius: 16px; padding: 14px 16px; box-shadow: var(--shadow); }
+.assist-head { display: flex; justify-content: space-between; align-items: center; }
+.assist-steps { padding-left: 18px; margin: 6px 0 10px; line-height: 1.5; }
+.assist-steps li { margin-bottom: 4px; }
+.assist-drop { border: 2px dashed var(--line2); border-radius: 12px; padding: 18px 12px; text-align: center; color: var(--muted); cursor: pointer; font-size: .9rem; }
+.assist-drop:hover, .assist-drop.over { border-color: var(--gold); color: var(--gold2); background: rgba(241,188,73,.06); }
+.assist-dock textarea { margin-top: 8px; font-size: .78rem; }
+.drop-over { outline: 2px dashed var(--gold); outline-offset: 3px; background: rgba(241,188,73,.05); }
+#toasts { z-index: 200; bottom: 20px; left: 20px; right: auto; }
+@media (max-width: 560px) { .assist-dock { right: 16px; bottom: 16px; } }
