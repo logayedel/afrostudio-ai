@@ -9,11 +9,13 @@ export class Preview {
     this.video = document.createElement('video'); this.video.playsInline = true; this.video.preload = 'auto';
     this.img = document.createElement('img'); this.img.alt = '';
     this.blank = document.createElement('div'); this.blank.className = 'blank-card';
+    this.ovl = document.createElement('img'); this.ovl.className = 'ovl'; this.ovl.alt = '';
     this.audios = [];
   }
 
   async init() {
     this.urls = await Promise.all(this.tl.items.map((it) => (it.blob ? blobURL(it.blob) : null)));
+    this.ovlUrls = await Promise.all(this.tl.items.map((it) => (it.overlay ? blobURL(it.overlay.blob) : null)));
     for (const v of this.tl.voices) this.audios.push({ start: v.start, el: new Audio(await blobURL(v.blob)), loop: false, volume: 1 });
     if (this.tl.music) {
       const a = new Audio(await blobURL(this.tl.music.blob));
@@ -40,6 +42,12 @@ export class Preview {
         await new Promise((r) => { if (this.video.readyState >= 1) r(); else { this.video.onloadedmetadata = r; this.video.onerror = r; } });
       } else if (it.type === 'image') { this.img.src = this.urls[i]; this.stage.replaceChildren(this.img); }
       else { this.blank.textContent = it.label; this.stage.replaceChildren(this.blank); }
+      if (it.overlay && this.ovlUrls[i]) {
+        this.ovl.src = this.ovlUrls[i];
+        this.ovl.dataset.pos = it.overlay.position;
+        this.ovl.style.width = `${it.overlay.width}%`;
+        this.stage.append(this.ovl);
+      }
     }
     if (it.type === 'clip') {
       try { this.video.currentTime = offset; } catch { /* ignoré */ }
