@@ -1,5 +1,6 @@
 import { h, field, toast, confirmBox, pickFile, copyText, notice, badge } from '../ui.js';
-import { listCharacters, getCharacter, newCharacter, saveCharacter, deleteCharacter, autosave, listProjects, saveProject } from '../store.js';
+import { listCharacters, getCharacter, newCharacter, saveCharacter, deleteCharacter, autosave, listProjects, saveProject, mutateCharacter } from '../store.js';
+import { startAssist, dropTarget } from '../assist.js';
 import { putBlob, blobURL } from '../db.js';
 import { identitySheet, characterReferencePrompt, voiceSheet } from '../prompts.js';
 import { can, generate } from '../engines/index.js';
@@ -52,6 +53,11 @@ export async function characterEditorView({ characterId }) {
     } }, h('span', { class: 'plus' }, '+'), 'Importer une image'));
   };
   drawGallery();
+  const addImage = async (f) => mutateCharacter(c.id, async (x) => { x.refImages.push(await putBlob(f, f.name || 'image.png')); });
+  dropTarget(gallery, 'image', addImage);
+  const ecoBtn = h('button', { class: 'btn primary', onclick: () => startAssist({
+    tool: 'chatgpt', kind: 'image', label: `planche de ${c.name}`, prompt: characterReferencePrompt(c, null), apply: addImage,
+  }) }, '🎨 Créer avec ChatGPT (mode éco)');
 
   async function enrich() {
     if (!c.description.trim()) return toast('Écrivez d\'abord une courte description du personnage.', 'error');
@@ -122,8 +128,10 @@ export async function characterEditorView({ characterId }) {
       h('div', { class: 'col' },
         h('div', { class: 'panel' }, h('h2', {}, '4. Références visuelles'),
           h('p', { class: 'muted small' }, 'Importez des images du personnage (créées avec l\'outil de votre choix). La première sert de référence principale pour toutes les scènes.'),
+          h('div', { class: 'row wrap' }, ecoBtn),
+          h('p', { class: 'muted small' }, 'Mode éco : le prompt est copié et ChatGPT s\'ouvre. Générez l\'image avec votre abonnement, puis clic droit → « Copier l\'image » et Ctrl+V ici. Vous pouvez aussi glisser une image sur la galerie.'),
           gallery,
-          imageAI ? notice('info', 'Moteur d\'images détecté : la génération directe sera ajoutée à l\'étape suivante.') : notice('off', 'Aucun moteur d\'images connecté : la génération automatique de références n\'est pas encore disponible. Copiez le prompt ci-dessous dans votre outil d\'images, puis importez le résultat.')),
+          imageAI ? notice('info', 'Moteur d\'images détecté : la génération directe sera ajoutée à l\'étape suivante.') : null),
         h('div', { class: 'panel' }, h('h2', {}, 'Fiche d\'identité visuelle'),
           h('p', { class: 'muted small' }, 'Ce texte est inséré automatiquement, mot pour mot, dans chaque plan où le personnage apparaît.'),
           sheetBox,

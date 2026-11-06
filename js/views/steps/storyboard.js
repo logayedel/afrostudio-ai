@@ -1,9 +1,10 @@
 import { h, field, toast, confirmBox, copyText, pickFile, download } from '../../ui.js';
-import { newShot, SHOT_TYPES, CAMERA_MOVES, FORMATS } from '../../store.js';
+import { newShot, SHOT_TYPES, CAMERA_MOVES, FORMATS, mutateProject, findShot, allShots } from '../../store.js';
+import { startAssist, dropTarget } from '../../assist.js';
 import { putBlob, blobURL } from '../../db.js';
 import { generate } from '../../engines/index.js';
 import { localStoryboard } from '../../engines/local.js';
-import { shotPrompt, decorSheet } from '../../prompts.js';
+import { shotPrompt, decorSheet, shotImagePrompt } from '../../prompts.js';
 import { aiContext, shotsFromAI, aiNotice, autoAssignDialogues } from './common.js';
 import { slug } from '../dashboard.js';
 
@@ -46,9 +47,22 @@ export function storyboardStep(ctx) {
     } catch (e) { toast(e.message, 'error'); await rerender(); }
   }
 
+  // Mode éco : image du plan avec ChatGPT, puis enchaînement sur le plan suivant sans image
+  const setImage = (shotId) => async (f) => mutateProject(p.id, async (x) => { findShot(x, shotId).shot.refImage = await putBlob(f, f.name || 'plan.png'); });
+  const imageTask = (scene, shot) => ({
+    tool: 'chatgpt', kind: 'image', label: `${scene.title} · plan ${scene.shots.indexOf(shot) + 1}`,
+    prompt: shotImagePrompt(p, ep, scene, shot, byId), apply: setImage(shot.id),
+    next: () => {
+      const list = allShots(ep); const i = list.findIndex((x) => x.shot.id === shot.id);
+      const n = list.slice(i + 1).find((x) => !x.shot.refImage);
+      return n ? imageTask(n.scene, n.shot) : null;
+    },
+  });
+
   const shotCard = (scene, shot, i) => {
     const thumb = h('div', { class: `shot-thumb ${fmtClass}` }, h('span', {}, `${shot.shotType}`));
     if (shot.refImage) blobURL(shot.refImage).then((u) => u && thumb.replaceChildren(h('img', { src: u, alt: '' })));
+    dropTarget(thumb, 'image', setImage(shot.id));
     const promptPre = h('pre', { class: 'sheet small' }, shotPrompt(p, ep, scene, shot, byId));
     const refreshPrompt = () => { promptPre.textContent = shotPrompt(p, ep, scene, shot, byId); save(); };
     const lines = scene.dialogues.filter((d) => d.shotId === shot.id);
@@ -57,6 +71,7 @@ export function storyboardStep(ctx) {
         thumb,
         h('div', { class: 'shot-tools' },
           h('b', {}, `Plan ${i + 1}`),
+          h('button', { class: 'link', onclick: () => startAssist(imageTask(scene, shot)) }, '🎨 Créer avec ChatGPT'),
           h('button', { class: 'link', onclick: async () => { const f = await pickFile('image/*'); if (!f) return; shot.refImage = await putBlob(f, f.name); await rerender(); } }, shot.refImage ? 'Changer l\'image' : 'Importer une image'),
           shot.refImage ? h('button', { class: 'link danger', onclick: async () => { shot.refImage = null; await rerender(); } }, 'Retirer') : null)),
       h('div', { class: 'two' },

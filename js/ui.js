@@ -109,6 +109,15 @@ export function pickFile(accept) {
   });
 }
 
+export function pickFiles(accept) {
+  return new Promise((resolve) => {
+    const i = h('input', { type: 'file', accept, multiple: true, style: { display: 'none' } });
+    i.onchange = () => { resolve([...i.files]); i.remove(); };
+    document.body.append(i);
+    i.click();
+  });
+}
+
 export function mediaDuration(blob, kind = 'video') {
   return new Promise((resolve) => {
     const el = document.createElement(kind);

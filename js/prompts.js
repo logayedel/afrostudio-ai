@@ -66,9 +66,27 @@ export function shotPrompt(project, episode, scene, shot, charactersById) {
     `Cadrage : ${shot.shotType}. Mouvement de caméra : ${shot.camera}.`,
     shot.description ? `Image : ${shot.description}.` : '',
     shot.action ? `Action : ${shot.action}.` : '',
-    lines.length ? `Dialogues en ${LANGUAGES[project.language] || 'français'}, synchronisés avec les mouvements de bouche : ${lines.map((l) => `${charactersById[l.characterId]?.name || 'Narrateur (voix off)'} : « ${l.text} »`).join(' ')}` : '',
-    speakers(lines, charactersById).length ? `Voix des personnages (exactement les mêmes dans tous les clips de la série) : ${speakers(lines, charactersById).map(voiceSheet).join(' | ')}.` : '',
+    lines.length && project.clipVoices === 'non' ? `Les personnages parlent (mouvements de bouche synchronisés), mais AUCUNE voix ni parole audible : uniquement les bruitages et l'ambiance sonore.` : '',
+    lines.length && project.clipVoices !== 'non' ? `Dialogues en ${LANGUAGES[project.language] || 'français'}, synchronisés avec les mouvements de bouche : ${lines.map((l) => `${charactersById[l.characterId]?.name || 'Narrateur (voix off)'} : « ${l.text} »`).join(' ')}` : '',
+    project.clipVoices !== 'non' && speakers(lines, charactersById).length ? `Voix des personnages (exactement les mêmes dans tous les clips de la série) : ${speakers(lines, charactersById).map(voiceSheet).join(' | ')}.` : '',
     `Durée : ${shot.duration} secondes. Expressions marquées, animation fluide. Aucun sous-titre ni texte ajouté à l'image ; les inscriptions peintes sur les personnages et les véhicules restent visibles.`,
+  ].filter(Boolean).join(' ');
+}
+
+// Prompt d'IMAGE fixe pour un plan (première image du clip, à créer dans ChatGPT par ex.)
+export function shotImagePrompt(project, episode, scene, shot, charactersById) {
+  const fmt = FORMATS[project.format] || FORMATS['9:16'];
+  const ids = shot.characters?.length ? shot.characters : scene.characters;
+  const chars = ids.map((id) => charactersById[id]).filter(Boolean);
+  return [
+    `Crée une image fixe ${project.format === '16:9' ? 'horizontale 16:9' : 'verticale 9:16'} (${fmt.w}x${fmt.h}) : la première image d'un plan de dessin animé.`,
+    `Style : ${project.style}.`,
+    decorSheet(project, scene) ? `Décor : ${decorSheet(project, scene)}, ${scene.timeOfDay?.toLowerCase() || 'jour'}.` : '',
+    chars.length ? `Personnages (respecte exactement leur apparence${chars.some((c) => c.refImages?.length) ? ' et les images de référence jointes' : ''}) : ${chars.map(identitySheet).join(' | ')}.` : '',
+    `Cadrage : ${shot.shotType}.`,
+    shot.description ? `Image : ${shot.description}.` : '',
+    shot.action ? `Moment représenté : ${shot.action}.` : '',
+    `Expressions marquées. Aucun sous-titre ni texte ajouté ; les inscriptions peintes sur les personnages et les véhicules restent visibles.`,
   ].filter(Boolean).join(' ');
 }
 
