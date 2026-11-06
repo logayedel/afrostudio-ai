@@ -15,6 +15,26 @@ export function identitySheet(c) {
   return parts.join(' ; ');
 }
 
+export const LANGUAGES = { 'fr-FR': 'français', 'en-US': 'anglais', 'wo-SN': 'wolof', 'sw-KE': 'swahili', 'ha-NG': 'haoussa', 'yo-NG': 'yoruba', 'ln-CD': 'lingala', 'ar-SA': 'arabe', 'pt-PT': 'portugais', 'es-ES': 'espagnol' };
+
+// Fiche voix : décrite toujours avec les mêmes mots pour que le moteur vidéo (ex. Grok)
+// garde la même voix d'un clip à l'autre.
+export function voiceSheet(c) {
+  if (!c) return '';
+  const v = c.voice || {};
+  if (v.description && v.description.trim()) return `${c.name} : ${v.description.trim()}`;
+  const pitch = Number(v.pitch) || 1, rate = Number(v.rate) || 1;
+  const parts = [
+    ({ masculin: 'voix masculine', 'féminin': 'voix féminine', enfant: "voix d'enfant" })[v.gender] || 'voix',
+    c.age ? `(${c.age})` : '',
+    v.tone ? `, ${v.tone.toLowerCase()}` : '',
+    pitch < 0.9 ? ', grave' : pitch > 1.15 ? ', aiguë' : '',
+    rate < 0.95 ? ', débit posé' : rate > 1.1 ? ', débit rapide' : '',
+    v.accent ? `, accent ${v.accent.replace(/^accent\s+/i, '')}` : '',
+  ];
+  return `${c.name} : ${parts.join(' ').replace(/\s+,/g, ',').replace(/\s+/g, ' ').trim()}`;
+}
+
 export function characterReferencePrompt(c, project) {
   return [
     `Planche de référence de personnage (character sheet) pour un dessin animé.`,
@@ -46,9 +66,15 @@ export function shotPrompt(project, episode, scene, shot, charactersById) {
     `Cadrage : ${shot.shotType}. Mouvement de caméra : ${shot.camera}.`,
     shot.description ? `Image : ${shot.description}.` : '',
     shot.action ? `Action : ${shot.action}.` : '',
-    lines.length ? `Les personnages parlent (mouvements de bouche) : ${lines.map((l) => `${charactersById[l.characterId]?.name || '?'} : « ${l.text} »`).join(' ')}` : '',
-    `Durée : ${shot.duration} secondes. Expressions marquées, animation fluide. Aucun texte ni sous-titre incrusté.`,
+    lines.length ? `Dialogues en ${LANGUAGES[project.language] || 'français'}, synchronisés avec les mouvements de bouche : ${lines.map((l) => `${charactersById[l.characterId]?.name || 'Narrateur (voix off)'} : « ${l.text} »`).join(' ')}` : '',
+    speakers(lines, charactersById).length ? `Voix des personnages (exactement les mêmes dans tous les clips de la série) : ${speakers(lines, charactersById).map(voiceSheet).join(' | ')}.` : '',
+    `Durée : ${shot.duration} secondes. Expressions marquées, animation fluide. Aucun sous-titre ni texte ajouté à l'image ; les inscriptions peintes sur les personnages et les véhicules restent visibles.`,
   ].filter(Boolean).join(' ');
+}
+
+function speakers(lines, byId) {
+  const seen = new Set();
+  return lines.map((l) => byId[l.characterId]).filter((c) => c && !seen.has(c.id) && seen.add(c.id));
 }
 
 export function scriptToText(project, episode, charactersById) {
